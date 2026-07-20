@@ -3,9 +3,12 @@ from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
 from core.views import PublicTokenObtainPairView, PublicTokenRefreshView, UserViewSet
+from rides.views import RideEventViewSet, RideViewSet
 
 router = DefaultRouter()
 router.register("users", UserViewSet, basename="user")
+router.register("rides", RideViewSet, basename="ride")
+router.register("ride-events", RideEventViewSet, basename="rideevent")
 
 urlpatterns = [
     path("admin/", admin.site.urls),
