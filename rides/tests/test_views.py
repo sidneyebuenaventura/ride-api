@@ -132,6 +132,36 @@ class RideViewSetTests(TestCase):
         response = self.client.get(self.list_url, {"sort": "distance"})
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
 
+    def test_pagination_stays_stable_across_pages_when_sorted_by_distance(self):
+        """The spec calls this out explicitly - sorting by distance can't
+        break pagination. A third ride (London) makes 3 rides total, so a
+        page_size of 2 forces an actual page boundary to check against."""
+        third_ride = self._make_ride(
+            self.rider_b, Ride.Status.EN_ROUTE, 51.5074, -0.1278, timezone.now()
+        )
+        self.client.force_authenticate(self.admin)
+        params = {
+            "sort": "distance",
+            "pickup_lat": "37.7749",
+            "pickup_lng": "-122.4194",
+            "page_size": 2,
+        }
+        page1 = self.client.get(self.list_url, params)
+        page2 = self.client.get(self.list_url, {**params, "page": 2})
+
+        ids_page1 = [r["id"] for r in page1.data["results"]]
+        ids_page2 = [r["id"] for r in page2.data["results"]]
+        all_ids = ids_page1 + ids_page2
+
+        self.assertEqual(len(ids_page1), 2)
+        self.assertEqual(len(ids_page2), 1)
+        self.assertEqual(
+            set(all_ids), {self.near_ride.pk, self.far_ride.pk, third_ride.pk}
+        )
+        self.assertEqual(
+            len(set(all_ids)), 3, "same ride shouldn't appear on two pages"
+        )
+
     def test_todays_ride_events_excludes_events_older_than_24h(self):
         self.client.force_authenticate(self.admin)
         response = self.client.get(self.list_url, {"status": Ride.Status.EN_ROUTE})
