@@ -23,7 +23,6 @@ class RideViewSet(viewsets.ModelViewSet):
             return RideDetailSerializer
         return RideListSerializer
 
-
     def get_queryset(self):
         queryset = Ride.objects.select_related("rider", "driver")
 
