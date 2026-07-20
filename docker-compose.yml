@@ -1,0 +1,15 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-wingz_rides}
+      POSTGRES_USER: ${POSTGRES_USER:-wingz}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-wingz}
+    ports:
+      - "5433:5432"
+    volumes:
+      - wingz_pgdata:/var/lib/postgresql/data
+
+volumes:
+  wingz_pgdata:
