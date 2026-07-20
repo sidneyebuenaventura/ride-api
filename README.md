@@ -18,6 +18,7 @@ pip install -r requirements.txt
 
 cp .env.example .env
 docker compose up -d
+python manage.py wait_for_db   # postgres in the container takes a sec to accept connections
 python manage.py migrate
 python manage.py createsuperuser
 ```
