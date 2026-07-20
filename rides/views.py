@@ -12,6 +12,7 @@ from rides.serializers import (
     RideDetailSerializer,
     RideEventSerializer,
     RideListSerializer,
+    RideWriteSerializer,
 )
 
 
@@ -21,6 +22,8 @@ class RideViewSet(viewsets.ModelViewSet):
     def get_serializer_class(self):
         if self.action == "retrieve":
             return RideDetailSerializer
+        if self.action in ("create", "update", "partial_update"):
+            return RideWriteSerializer
         return RideListSerializer
 
     def get_queryset(self):

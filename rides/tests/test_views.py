@@ -152,3 +152,90 @@ class RideViewSetTests(TestCase):
         detail_url = reverse("ride-detail", args=[self.near_ride.pk])
         with self.assertNumQueries(2):
             self.client.get(detail_url)
+
+    def test_create_ride_sets_rider_and_driver(self):
+        self.client.force_authenticate(self.admin)
+        response = self.client.post(
+            self.list_url,
+            {
+                "status": Ride.Status.EN_ROUTE,
+                "rider": self.rider_a.id,
+                "driver": self.driver.id,
+                "pickup_latitude": 1.0,
+                "pickup_longitude": 2.0,
+                "dropoff_latitude": 3.0,
+                "dropoff_longitude": 4.0,
+                "pickup_time": timezone.now().isoformat(),
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        created = Ride.objects.get(pk=response.data["id"])
+        self.assertEqual(created.rider_id, self.rider_a.id)
+        self.assertEqual(created.driver_id, self.driver.id)
+
+    def test_create_ride_with_nonexistent_rider_is_a_bad_request_not_a_crash(self):
+        self.client.force_authenticate(self.admin)
+        response = self.client.post(
+            self.list_url,
+            {
+                "status": Ride.Status.EN_ROUTE,
+                "rider": 999999,
+                "driver": self.driver.id,
+                "pickup_latitude": 1.0,
+                "pickup_longitude": 2.0,
+                "dropoff_latitude": 3.0,
+                "dropoff_longitude": 4.0,
+                "pickup_time": timezone.now().isoformat(),
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+
+class RideEventViewSetTests(TestCase):
+    def setUp(self):
+        self.admin = User.objects.create_user(
+            username="re_admin",
+            email="re_admin@example.com",
+            password="x",
+            role=User.Role.ADMIN,
+        )
+        rider = User.objects.create_user(
+            username="re_rider", email="re_rider@example.com", password="x"
+        )
+        driver = User.objects.create_user(
+            username="re_driver", email="re_driver@example.com", password="x"
+        )
+        self.ride = Ride.objects.create(
+            status=Ride.Status.EN_ROUTE,
+            rider=rider,
+            driver=driver,
+            pickup_latitude=0,
+            pickup_longitude=0,
+            dropoff_latitude=0,
+            dropoff_longitude=0,
+            pickup_time=timezone.now(),
+        )
+        self.client = APIClient()
+        self.list_url = reverse("rideevent-list")
+
+    def test_create_ride_event_attaches_to_the_given_ride(self):
+        self.client.force_authenticate(self.admin)
+        response = self.client.post(
+            self.list_url,
+            {"ride": self.ride.id, "description": "Status changed to pickup"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        event = RideEvent.objects.get(pk=response.data["id"])
+        self.assertEqual(event.ride_id, self.ride.id)
+
+    def test_create_ride_event_with_nonexistent_ride_is_a_bad_request_not_a_crash(self):
+        self.client.force_authenticate(self.admin)
+        response = self.client.post(
+            self.list_url,
+            {"ride": 999999, "description": "Status changed to pickup"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)

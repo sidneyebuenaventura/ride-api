@@ -92,6 +92,13 @@ Query count is asserted, not just claimed - see `assertNumQueries` in `rides/tes
 Login obviously can't itself require `role=admin` or nobody could ever get a token -
 `PublicTokenObtainPairView`/`PublicTokenRefreshView` override that back to `AllowAny`.
 
+`RideListSerializer`'s `rider`/`driver` are nested read-only objects (that's what makes the list
+response useful), which means they can't double as the writable fields `create`/`update` need. There's
+a separate `RideWriteSerializer` for that (plain FK fields, so a bad rider/driver id comes back as a
+normal 400, not a DB IntegrityError). Same idea for `RideEventSerializer` - the nested version used
+inside a Ride payload doesn't need `ride` since it's implied by the nesting, but the standalone one at
+`/api/ride-events/` does.
+
 ## Tests / lint
 
 ```bash

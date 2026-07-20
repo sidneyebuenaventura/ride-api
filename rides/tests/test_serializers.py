@@ -6,7 +6,12 @@ from django.utils import timezone
 
 from core.models import User
 from rides.models import Ride, RideEvent
-from rides.serializers import RideDetailSerializer, RideListSerializer
+from rides.serializers import (
+    RideDetailSerializer,
+    RideEventSerializer,
+    RideListSerializer,
+    RideWriteSerializer,
+)
 
 
 class RideSerializerTests(TestCase):
@@ -69,3 +74,69 @@ class RideSerializerTests(TestCase):
         ride.todays_ride_events = []
         data = RideDetailSerializer(ride).data
         self.assertEqual(len(data["ride_events"]), 2)
+
+
+class RideWriteSerializerTests(TestCase):
+    """RideListSerializer's rider/driver are read-only nested objects, so
+    create/update needs its own serializer with plain writable FKs."""
+
+    def setUp(self):
+        self.rider = User.objects.create_user(
+            username="write_rider", email="write_rider@example.com", password="x"
+        )
+        self.driver = User.objects.create_user(
+            username="write_driver", email="write_driver@example.com", password="x"
+        )
+        self.payload = {
+            "status": Ride.Status.EN_ROUTE,
+            "rider": self.rider.id,
+            "driver": self.driver.id,
+            "pickup_latitude": 1.0,
+            "pickup_longitude": 2.0,
+            "dropoff_latitude": 3.0,
+            "dropoff_longitude": 4.0,
+            "pickup_time": timezone.now(),
+        }
+
+    def test_creates_ride_with_rider_and_driver(self):
+        serializer = RideWriteSerializer(data=self.payload)
+        self.assertTrue(serializer.is_valid(), serializer.errors)
+        ride = serializer.save()
+        self.assertEqual(ride.rider, self.rider)
+        self.assertEqual(ride.driver, self.driver)
+
+    def test_rejects_nonexistent_rider_with_a_validation_error(self):
+        self.payload["rider"] = 999999
+        serializer = RideWriteSerializer(data=self.payload)
+        self.assertFalse(serializer.is_valid())
+        self.assertIn("rider", serializer.errors)
+
+
+class RideEventSerializerStandaloneTests(TestCase):
+    """Unlike NestedRideEventSerializer (embedded in a Ride payload), the
+    standalone serializer needs a writable `ride` field - it isn't implied
+    by nesting when hit directly via /api/ride-events/."""
+
+    def test_ride_field_is_writable(self):
+        rider = User.objects.create_user(
+            username="event_rider", email="event_rider@example.com", password="x"
+        )
+        driver = User.objects.create_user(
+            username="event_driver", email="event_driver@example.com", password="x"
+        )
+        ride = Ride.objects.create(
+            status=Ride.Status.EN_ROUTE,
+            rider=rider,
+            driver=driver,
+            pickup_latitude=0,
+            pickup_longitude=0,
+            dropoff_latitude=0,
+            dropoff_longitude=0,
+            pickup_time=timezone.now(),
+        )
+        serializer = RideEventSerializer(
+            data={"ride": ride.id, "description": "Status changed to pickup"}
+        )
+        self.assertTrue(serializer.is_valid(), serializer.errors)
+        event = serializer.save()
+        self.assertEqual(event.ride, ride)
